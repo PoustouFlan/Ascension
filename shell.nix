@@ -41,6 +41,8 @@ let
       requests
       babel
       matplotlib
+      pytesseract
+      opencv4
       (
         buildPythonPackage rec {
           pname = "tortoise-orm";
