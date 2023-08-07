@@ -2,7 +2,7 @@ from tortoise import Tortoise, run_async
 from data.models import *
 
 import logging
-log = logging.getLogger("CryptoDrink")
+log = logging.getLogger("Ascension")
 
 async def init():
     await Tortoise.init(

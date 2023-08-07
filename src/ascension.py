@@ -21,16 +21,26 @@ bot = commands.Bot(
 )
 
 initial_extensions = [
-    #"cogs.user-info",
+    "cogs.register",
+    "cogs.unregister",
+    "cogs.add_run",
+    "cogs.user-info",
+    "cogs.scoreboard"
 ]
 
 @bot.event
 async def on_ready():
     log.info(f"Logged in as {bot.user}")
+
+@bot.command()
+async def yolosync(ctx):
+    log.info("Synchronization start")
     try:
         commands = await bot.tree.sync(guild = guild_object)
         log.info("Synchronization complete!")
         log.info(f"{len(commands)} command(s) synchronized")
+        for cmd in commands:
+            print(" -", cmd.name)
     except Exception as e:
         log.exception(str(e))
 

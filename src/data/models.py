@@ -14,7 +14,8 @@ log = logging.getLogger("Ascension")
 
 class CelesteRun(Model):
     # user_id        = fields.BigIntField()
-    date           = fields.DateField(null = True)
+    id             = fields.UUIDField(pk = True)
+    date           = fields.DatetimeField(null = True)
     chapter1_time  = fields.TimeDeltaField()
     chapter2_time  = fields.TimeDeltaField()
     chapter3_time  = fields.TimeDeltaField()
@@ -68,7 +69,7 @@ class CelesteRun(Model):
         return time, death
 
     @classmethod
-    async def from_image(cls, path):
+    async def from_image(cls, path, date = None):
         img = cv2.imread(path)
         text = pytesseract.image_to_string(img, config=custom_config)
         lines = text.split('\n')
@@ -82,7 +83,7 @@ class CelesteRun(Model):
             log.exception(text)
             return None
 
-        json = {}
+        json = {'date': date}
         chapter_times = []
         chapter_death = []
         for chapter in range(7):
@@ -105,12 +106,13 @@ class CelesteRun(Model):
         json["total_time"] = time
         json["total_death"] = death
 
-        print(json)
         celeste_run = await cls.create(**json)
+        print(celeste_run)
         return celeste_run
 
     def __str__(self):
         return f"""
+            ID: {self.id}
             Date: {self.date}
             Forsaken City: {self.chapter1_death} | {self.chapter1_time}
             Old Site: {self.chapter2_death} | {self.chapter2_time}
@@ -122,10 +124,26 @@ class CelesteRun(Model):
             TOTALS: {self.total_death} | {self.total_time}
         """
 
+    def description(self):
+        fd = lambda d: str(d).rjust(3)
+        ft = lambda t: str(t)[:-3]
+
+        return (
+            f"`Forsaken City   `:skull:`{fd(self.chapter1_death)}` | :clock1: `{ft(self.chapter1_time)}`\n"
+            f"`Old Site        `:skull:`{fd(self.chapter2_death)}` | :clock1: `{ft(self.chapter2_time)}`\n"
+            f"`Celestial Resort`:skull:`{fd(self.chapter3_death)}` | :clock1: `{ft(self.chapter3_time)}`\n"
+            f"`Golden Ridge    `:skull:`{fd(self.chapter4_death)}` | :clock1: `{ft(self.chapter4_time)}`\n"
+            f"`Mirror Temple   `:skull:`{fd(self.chapter5_death)}` | :clock1: `{ft(self.chapter5_time)}`\n"
+            f"`Reflection      `:skull:`{fd(self.chapter6_death)}` | :clock1: `{ft(self.chapter6_time)}`\n"
+            f"`The Summit      `:skull:`{fd(self.chapter7_death)}` | :clock1: `{ft(self.chapter7_time)}`\n"
+            f"`TOTALS          `:skull:`{fd(self.total_death)   }` | :clock1: `{ft(self.total_time)   }`\n"
+        )
+
 
 class Runner(Model):
-    user_id   = fields.BigIntField(pk = True)
-    runs      = fields.ManyToManyField('models.CelesteRun')
+    user_id     = fields.BigIntField(pk = True)
+    runs        = fields.ManyToManyField('models.CelesteRun')
+    server_rank = fields.IntField(default = 2147483647)
 
     @classmethod
     async def get_existing(cls, user_id):
@@ -144,8 +162,33 @@ class Runner(Model):
         else:
             return existing_user
 
+    async def add_run(self, run: CelesteRun):
+        await self.runs.add(run)
+
+    async def best_times(self):
+        json = {
+            'date': None,
+        }
+        async for run in self.runs.all():
+            for argname in [f'chapter{x}' for x in range(1, 8)] + ['total']:
+                if argname + '_time' not in json:
+                    json[argname + '_time'] = getattr(run, argname + '_time')
+                    json[argname + '_death'] = getattr(run, argname + '_death')
+                else:
+                    json[argname + '_time'] = min(
+                            json[argname + '_time'],
+                            getattr(run, argname + '_time')
+                    )
+                    json[argname + '_death'] = min(
+                            json[argname + '_death'],
+                            getattr(run, argname + '_death')
+                    )
+        best_run = await CelesteRun.create(**json)
+        return best_run
+
 
 class Scoreboard(Model):
+    id    = fields.UUIDField(pk = True)
     users = fields.ManyToManyField('models.Runner')
 
     async def add_user(self, user: Runner):
