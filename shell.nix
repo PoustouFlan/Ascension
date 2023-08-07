@@ -42,7 +42,8 @@ let
       babel
       matplotlib
       pytesseract
-      opencv4
+      #opencv4
+      imutils
       (
         buildPythonPackage rec {
           pname = "tortoise-orm";

@@ -51,6 +51,8 @@ class AddRun(commands.Cog):
     ):
         await screenshot.save("data/tmp/screenshot.png")
         run = await CelesteRun.from_image("data/tmp/screenshot.png", date = date)
+        if run is None:
+            return None
 
         runner = await Runner.get_existing_or_create(user_id)
         await runner.add_run(run)
@@ -65,10 +67,17 @@ class AddRun(commands.Cog):
         await interaction.response.defer()
 
         user_id = message.author.id
-        screenshot = message.attachments[0] # /!\
-        embed = await AddRun.load_screenshot(
-            screenshot, message.created_at, user_id
-        )
+        for screenshot in message.attachments:
+            embed = await AddRun.load_screenshot(
+                screenshot, message.created_at, user_id
+            )
+            if embed is not None:
+                break
+        else:
+            await interaction.followup.send(
+                "No readable attachment"
+            )
+            return
 
         await interaction.followup.send(
             "",
@@ -101,6 +110,9 @@ class AddRun(commands.Cog):
             user_id = user.id
 
         embed = await AddRun.load_screenshot(screenshot, date, user_id)
+        if embed is None:
+            await interaction.followup.send("Could not read screenshot")
+            return
 
         await interaction.followup.send(
             "",

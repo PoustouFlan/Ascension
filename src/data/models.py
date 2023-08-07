@@ -1,6 +1,6 @@
 from typing import Optional
 
-import cv2
+import cv2, imutils
 import pytesseract
 custom_config = r'--oem 3 --psm 6'
 import re
@@ -37,7 +37,7 @@ class CelesteRun(Model):
     def parse_chapter_line(line):
         line = line.split()
 
-        regex = '(\d*:)?(\d*):(\d\d)\.(\d\d\d)'
+        regex = '(\d+:)?(\d+):?(\d\d)\.?(\d\d\d)'
         while re.match(regex, line[-1]) is None:
             line.pop()
             if len(line) == 0:
@@ -45,6 +45,7 @@ class CelesteRun(Model):
 
         match = re.match(regex, line[-1])
         hours, minutes, seconds, milliseconds = match.group(1, 2, 3, 4)
+        print(hours, minutes, seconds, milliseconds)
         if hours is None:
             hours = 0
         else:
@@ -64,14 +65,21 @@ class CelesteRun(Model):
             seconds = seconds,
             milliseconds = milliseconds
         )
-        death = int(line[-2])
+        death = line[-2]
+        if death in 'oO':
+            death = 0
+        else:
+            death = int(death)
 
         return time, death
 
     @classmethod
     async def from_image(cls, path, date = None):
         img = cv2.imread(path)
+        img = imutils.rotate(img, -2)
+
         text = pytesseract.image_to_string(img, config=custom_config)
+        print(text)
         lines = text.split('\n')
         start = 0
         starters = ['Fo', 'La']
@@ -87,12 +95,21 @@ class CelesteRun(Model):
         chapter_times = []
         chapter_death = []
         for chapter in range(7):
-            line = lines[start + chapter]
+            line = lines[start]
+            while line == '':
+                start += 1
+                if start >= len(lines):
+                    log.exception("Not enough chapters.")
+                    log.exception(text)
+                    return None
+                line = lines[start]
             time, death = cls.parse_chapter_line(line)
+            if time is None:
+                return None
             json[f"chapter{chapter+1}_time"] = time
             json[f"chapter{chapter+1}_death"] = death
+            start += 1
 
-        start += 7
         while start < len(lines) and lines[start][:2] != 'TO':
             start += 1
 
@@ -103,6 +120,8 @@ class CelesteRun(Model):
 
         line = lines[start]
         time, death = cls.parse_chapter_line(line)
+        if time is None:
+            return None
         json["total_time"] = time
         json["total_death"] = death
 
