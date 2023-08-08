@@ -25,7 +25,8 @@ initial_extensions = [
     "cogs.unregister",
     "cogs.add_run",
     "cogs.user-info",
-    "cogs.scoreboard"
+    "cogs.scoreboard",
+    "cogs.edit",
 ]
 
 @bot.event

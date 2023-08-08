@@ -33,6 +33,14 @@ class CelesteRun(Model):
     total_time     = fields.TimeDeltaField()
     total_death    = fields.SmallIntField()
 
+    @classmethod
+    async def get_existing(cls, run_id):
+        runs = await cls.filter(id = run_id)
+        if len(runs) == 0:
+            return None
+        else:
+            return runs[0]
+
     @staticmethod
     def parse_chapter_line(line):
         line = line.split()
@@ -66,6 +74,7 @@ class CelesteRun(Model):
             milliseconds = milliseconds
         )
         death = line[-2]
+        death = death.replace('"', '1')
         if death in 'oO°':
             death = 0
         else:
