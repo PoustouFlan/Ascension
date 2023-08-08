@@ -110,8 +110,11 @@ class UserInfo(commands.Cog):
         name = "user-info",
         description = "Displays description of a runner"
     )
-    async def user_info(self, interaction, user:discord.Member):
+    async def user_info(self, interaction, user:discord.Member = None):
         await interaction.response.defer()
+
+        if user is None:
+            user = interaction.user
 
         runner = await Runner.get_existing_or_create(user.id)
         embed, file = await self.embed_runner(runner)
