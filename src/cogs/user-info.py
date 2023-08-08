@@ -67,10 +67,20 @@ class UserInfo(commands.Cog):
         embed.set_thumbnail(url=avatar.url)
 
         best_run = await runner.best_times()
+        sobs_time = timedelta()
+        sobs_death = 0
+        for chapter in range(1, 8):
+            sobs_time += getattr(best_run, f'chapter{chapter}_time')
+            sobs_death += getattr(best_run, f'chapter{chapter}_death')
+
+        fd = lambda d: str(d).rjust(3)
+        ft = lambda t: str(t)[:-3]
+        description = best_run.description()
+        description += f"`SOBS            `:skull:`{fd(sobs_death)   }` | :clock1: `{ft(sobs_time)   }`\n"
         embed.add_field(
             name = "Personal Bests",
             inline = False,
-            value = best_run.description()
+            value = description
         )
 
         value = ''
@@ -89,13 +99,10 @@ class UserInfo(commands.Cog):
             value = value
         )
 
-        try:
-            filename = f'data/tmp/{runner.user_id}_plot.png'
-            await UserInfo.plot_runner(runner, filename)
-            file = discord.File(filename, filename = filename[9:])
-            embed.set_image(url = f"attachment://{filename[9:]}")
-        except Exception as e:
-            log.exception(e)
+        filename = f'data/tmp/{runner.user_id}_plot.png'
+        await UserInfo.plot_runner(runner, filename)
+        file = discord.File(filename, filename = filename[9:])
+        embed.set_image(url = f"attachment://{filename[9:]}")
 
         return embed, file
 

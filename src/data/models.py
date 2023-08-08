@@ -66,7 +66,7 @@ class CelesteRun(Model):
             milliseconds = milliseconds
         )
         death = line[-2]
-        if death in 'oO':
+        if death in 'oO°':
             death = 0
         else:
             death = int(death)
