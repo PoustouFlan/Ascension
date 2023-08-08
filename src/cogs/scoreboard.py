@@ -88,6 +88,10 @@ class Leaderboard(commands.Cog):
         for i, (runner, value) in enumerate(users):
             if field.endswith('time'):
                 value = str(value)[:-3]
+                value_emote = ':clock1:'
+            else:
+                value_emote = ':skull:'
+
             if field == 'total_time':
                 old_place = runner.server_rank
                 new_place = i + 1
@@ -105,7 +109,7 @@ class Leaderboard(commands.Cog):
 
             leaderboard += (
                 f"{emote} `{str(new_place).rjust(digits)}` | "
-                f":clock1: `{value}` | "
+                f"{value_emote} `{value}` | "
                 f"<@{runner.user_id}>\n"
             )
 
