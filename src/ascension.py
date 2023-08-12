@@ -27,6 +27,7 @@ initial_extensions = [
     "cogs.user-info",
     "cogs.scoreboard",
     "cogs.edit",
+    "cogs.delete",
 ]
 
 @bot.event

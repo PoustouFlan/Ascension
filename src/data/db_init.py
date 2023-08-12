@@ -21,6 +21,10 @@ async def init():
     else:
         log.info("Un scoreboard est déjà existant.")
 
+    async for temp_run in CelesteRun.filter(date=None):
+        print(temp_run)
+        await temp_run.delete()
+
 
 if __name__ == "__main__":
     run_async(init())

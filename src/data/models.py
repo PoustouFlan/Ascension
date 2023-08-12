@@ -211,7 +211,7 @@ class Runner(Model):
                             json[argname + '_death'],
                             getattr(run, argname + '_death')
                     )
-        best_run = await CelesteRun.create(**json)
+        best_run = CelesteRun(**json)
         return best_run
 
 

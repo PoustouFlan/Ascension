@@ -67,6 +67,7 @@ class UserInfo(commands.Cog):
         embed.set_thumbnail(url=avatar.url)
 
         best_run = await runner.best_times()
+        print(best_run)
         sobs_time = timedelta()
         sobs_death = 0
         for chapter in range(1, 8):
