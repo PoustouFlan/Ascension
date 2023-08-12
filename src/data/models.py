@@ -2,7 +2,6 @@ from typing import Optional
 
 import cv2, imutils
 import pytesseract
-custom_config = r'--oem 3 --psm 6'
 import re
 
 from tortoise.models import Model
@@ -87,7 +86,7 @@ class CelesteRun(Model):
         img = cv2.imread(path)
         img = imutils.rotate(img, -2)
 
-        text = pytesseract.image_to_string(img, config=custom_config)
+        text = pytesseract.image_to_string(img)
         print(text)
         lines = text.split('\n')
         start = 0
