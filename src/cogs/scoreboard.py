@@ -11,6 +11,7 @@ from data.models import *
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 from datetime import timedelta
+from datetime import datetime
 
 class Leaderboard(commands.Cog):
     def __init__(self, bot):
@@ -21,7 +22,7 @@ class Leaderboard(commands.Cog):
         time = timedelta(seconds = x)
         return str(time)[:-3]
 
-    async def plot_runners(self, runners, filename, field):
+    async def plot_runners(self, runners, filename, field, pbs):
         formatter = FuncFormatter(Leaderboard.plot_formatter)
         guild = await self.bot.fetch_guild(GUILD_ID)
 
@@ -29,14 +30,24 @@ class Leaderboard(commands.Cog):
             member = await guild.fetch_member(runner.user_id)
             dates = []
             values = []
+            best = None
             async for run in runner.runs.all():
                 if run.date is None:
                     continue
-                dates.append(run.date)
                 value = getattr(run, field)
                 if field.endswith('time'):
                     value = value.seconds
+                if pbs:
+                    if best is not None and best < value:
+                        continue
+                    best = value
+                    dates.append(run.date)
+                    values.append(value)
+                dates.append(run.date)
                 values.append(value)
+            if pbs:
+                dates.pop(0)
+                dates.append(datetime.now())
             plt.plot(dates, values, label = member.nick)
 
         plt.grid(which='major', axis='y', color='gray', linestyle='dashed', linewidth=0.5, alpha=0.5)
@@ -61,7 +72,7 @@ class Leaderboard(commands.Cog):
         name = "scoreboard",
         description = "affiche le scoreboard du serveur"
     )
-    async def scoreboard(self, interaction, field:str='total_time'):
+    async def scoreboard(self, interaction, field:str='total_time', pbs:bool=False):
         await interaction.response.defer()
 
         scoreboards = await Scoreboard.all()
@@ -122,7 +133,7 @@ class Leaderboard(commands.Cog):
 
         try:
             filename = f'data/tmp/scoreboard_plot.png'
-            await self.plot_runners(runners, filename, field)
+            await self.plot_runners(runners, filename, field, pbs)
             file = discord.File(filename, filename = filename[9:])
             embed.set_image(url = f"attachment://{filename[9:]}")
         except Exception as e:
