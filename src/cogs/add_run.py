@@ -20,7 +20,7 @@ class AddRun(commands.Cog):
         self.bot.tree.add_command(self.ctx_menu, guild=guild_object)
 
     @staticmethod
-    def embed_run(run):
+    def embed_run(run, best_run):
         embed = discord.Embed(
             title = "New run",
             colour = discord.Colour.orange()
@@ -38,7 +38,7 @@ class AddRun(commands.Cog):
         embed.add_field(
             name = '',
             inline = False,
-            value = run.description()
+            value = run.description(best_run)
         )
 
         return embed
@@ -55,8 +55,9 @@ class AddRun(commands.Cog):
             return None
 
         runner = await Runner.get_existing_or_create(user_id)
+        best_run = await runner.best_times()
         await runner.add_run(run)
-        embed = AddRun.embed_run(run)
+        embed = AddRun.embed_run(run, best_run)
 
         return embed
 

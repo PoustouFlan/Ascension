@@ -3,6 +3,8 @@ from typing import Optional
 import cv2, imutils
 import pytesseract
 import re
+from math import pi, cos, sin
+config = '--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789.:'
 
 from tortoise.models import Model
 from tortoise import fields
@@ -43,15 +45,17 @@ class CelesteRun(Model):
     @staticmethod
     def parse_chapter_line(line):
         line = line.split()
+        if len(line) == 0:
+            return None, None
 
-        regex = '(\d+:)?(\d+):?(\d\d)\.?(\d\d\d)'
+        regex = '(\d+:)?(\d+)(:|\.)?(\d\d)\.?(\d\d\d)'
         while re.match(regex, line[-1]) is None:
             line.pop()
             if len(line) == 0:
                 return None, None
 
         match = re.match(regex, line[-1])
-        hours, minutes, seconds, milliseconds = match.group(1, 2, 3, 4)
+        hours, minutes, seconds, milliseconds = match.group(1, 2, 4, 5)
         print(hours, minutes, seconds, milliseconds)
         if hours is None:
             hours = 0
@@ -73,68 +77,65 @@ class CelesteRun(Model):
             milliseconds = milliseconds
         )
         death = line[-2]
-        death = death.replace('"', '1')
-        if death in 'oO°':
-            death = 0
-        else:
-            death = int(death)
+        death = int(death)
 
         return time, death
 
+    @staticmethod
+    def horizontal_lines(img):
+        img = imutils.rotate(img, -1.5)
+        height, width, _ = img.shape
+        debug = img.copy()
+        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+        edges = cv2.Canny(gray, 30, 50)
+        cv2.imwrite('data/tmp/edges.png', edges)
+
+        ys = []
+        lines = cv2.HoughLines(edges, 1, pi/180, 500)
+        for line in lines:
+            rho, theta = line[0]
+            if abs(theta - pi / 2) > 0.1:
+                continue
+            b = sin(theta)
+            y = int(b * rho)
+            ys.append(y)
+            cv2.line(debug, (0, y), (width, y), (0, 0, 255), 3)
+            cv2.imwrite('data/tmp/debug.png', debug)
+
+        ys.sort()
+        return ys
+
+    @staticmethod
+    def read_image(path):
+        img = cv2.imread(path)
+        lines = CelesteRun.horizontal_lines(img)
+        data = []
+        for i in range(len(lines)-1):
+            y0 = lines[i]
+            y1 = lines[i+1]
+            cropped = img[y0:y1,:]
+            text = pytesseract.image_to_string(cropped, config=config)
+            time, death = CelesteRun.parse_chapter_line(text)
+            if time is not None:
+                data.append((time, death))
+        if len(data) == 8:
+            return data
+        return None
+
     @classmethod
     async def from_image(cls, path, date = None):
-        img = cv2.imread(path)
-        img = imutils.rotate(img, -2)
-
-        text = pytesseract.image_to_string(img)
-        print(text)
-        lines = text.split('\n')
-        start = 0
-        starters = ['Fo', 'La']
-        while start < len(lines) and lines[start][:2] not in starters:
-            start += 1
-
-        if start + 7 >= len(lines):
-            log.exception("Tesseract exception.")
-            log.exception(text)
-            return None
-
         json = {'date': date}
-        chapter_times = []
-        chapter_death = []
-        for chapter in range(7):
-            line = lines[start]
-            while line == '':
-                start += 1
-                if start >= len(lines):
-                    log.exception("Not enough chapters.")
-                    log.exception(text)
-                    return None
-                line = lines[start]
-            time, death = cls.parse_chapter_line(line)
-            if time is None:
-                return None
-            json[f"chapter{chapter+1}_time"] = time
-            json[f"chapter{chapter+1}_death"] = death
-            start += 1
-
-        while start < len(lines) and lines[start][:2] != 'TO':
-            start += 1
-
-        if start >= len(lines):
-            log.exception("Totals not detected.")
-            log.exception(text)
+        data = CelesteRun.read_image(path)
+        if data is None:
             return None
 
-        line = lines[start]
-        time, death = cls.parse_chapter_line(line)
-        if time is None:
-            return None
-        json["total_time"] = time
-        json["total_death"] = death
+        for i, (time, death) in enumerate(data):
+            prefix = 'total' if i == 7 else f'chapter{i+1}'
+            json[f'{prefix}_time'] = time
+            json[f'{prefix}_death'] = death
 
         celeste_run = await cls.create(**json)
-        print(celeste_run)
+        log.debug(str(celeste_run))
         return celeste_run
 
     def __str__(self):
@@ -151,20 +152,32 @@ class CelesteRun(Model):
             TOTALS: {self.total_death} | {self.total_time}
         """
 
-    def description(self):
+    def description(self, compare=None):
         fd = lambda d: str(d).rjust(3)
         ft = lambda t: str(t)[:-3]
-
-        return (
-            f"`Forsaken City   `:skull:`{fd(self.chapter1_death)}` | :clock1: `{ft(self.chapter1_time)}`\n"
-            f"`Old Site        `:skull:`{fd(self.chapter2_death)}` | :clock1: `{ft(self.chapter2_time)}`\n"
-            f"`Celestial Resort`:skull:`{fd(self.chapter3_death)}` | :clock1: `{ft(self.chapter3_time)}`\n"
-            f"`Golden Ridge    `:skull:`{fd(self.chapter4_death)}` | :clock1: `{ft(self.chapter4_time)}`\n"
-            f"`Mirror Temple   `:skull:`{fd(self.chapter5_death)}` | :clock1: `{ft(self.chapter5_time)}`\n"
-            f"`Reflection      `:skull:`{fd(self.chapter6_death)}` | :clock1: `{ft(self.chapter6_time)}`\n"
-            f"`The Summit      `:skull:`{fd(self.chapter7_death)}` | :clock1: `{ft(self.chapter7_time)}`\n"
-            f"`TOTALS          `:skull:`{fd(self.total_death)   }` | :clock1: `{ft(self.total_time)   }`\n"
-        )
+        names = [
+            'Forsaken City   ',
+            'Old Site        ',
+            'Celestial Resort',
+            'Golden Ridge    ',
+            'Mirror Temple   ',
+            'Reflection      ',
+            'The summit      ',
+            'TOTALS          ',
+        ]
+        description = ''
+        for i in range(8):
+            name = names[i]
+            pref = 'total' if i == 7 else f'chapter{i+1}'
+            death = getattr(self, pref + '_death')
+            time = getattr(self, pref + '_time')
+            if compare is not None:
+                pb = getattr(compare, pref + '_time') >= time
+            else:
+                pb = False
+            emoji = ':star:' if pb else ''
+            description += f"`{name}`:skull:`{fd(death)}` | :clock1: `{ft(time)}`{emoji}\n"
+        return description
 
 
 class Runner(Model):
