@@ -4,7 +4,7 @@ import cv2, imutils
 import pytesseract
 import re
 from math import pi, cos, sin
-config = '--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789.:'
+config = '--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789.:/'
 
 from tortoise.models import Model
 from tortoise import fields
@@ -43,7 +43,7 @@ class CelesteRun(Model):
             return runs[0]
 
     @staticmethod
-    def parse_chapter_line(line):
+    def parse_chapter_line(line, bside=False):
         line = line.split()
         if len(line) == 0:
             return None, None
@@ -56,19 +56,15 @@ class CelesteRun(Model):
 
         match = re.match(regex, line[-1])
         hours, minutes, seconds, milliseconds = match.group(1, 2, 4, 5)
-        print(hours, minutes, seconds, milliseconds)
         if hours is None:
             hours = 0
         else:
             hours = hours[:-1]
 
-        try:
-            hours = int(hours)
-            minutes = int(minutes)
-            seconds = int(seconds)
-            milliseconds = int(milliseconds)
-        except ValueError:
-            return None, None
+        hours = int(hours)
+        minutes = int(minutes)
+        seconds = int(seconds)
+        milliseconds = int(milliseconds)
 
         time = timedelta(
             hours = hours,
@@ -76,8 +72,12 @@ class CelesteRun(Model):
             seconds = seconds,
             milliseconds = milliseconds
         )
-        death = line[-2]
-        death = int(death)
+        try:
+            death = int(line[-2])
+            if bside:
+                death += int(line[-3])
+        except Exception:
+            return None, None
 
         return time, death
 
@@ -110,12 +110,19 @@ class CelesteRun(Model):
         img = cv2.imread(path)
         lines = CelesteRun.horizontal_lines(img)
         data = []
+        bside = False
         for i in range(len(lines)-1):
             y0 = lines[i]
             y1 = lines[i+1]
             cropped = img[y0:y1,:]
             text = pytesseract.image_to_string(cropped, config=config)
-            time, death = CelesteRun.parse_chapter_line(text)
+            if len(data) == 0:
+                regex = '\d\d?/20 \d+ \d+ (\d+:)?(\d+)(:|\.)?(\d\d)\.?(\d\d\d)'
+                if re.search(regex, text) is not None:
+                    bside = True
+                    log.debug("B-SIDE ON")
+            log.debug(text)
+            time, death = CelesteRun.parse_chapter_line(text, bside)
             if time is not None:
                 data.append((time, death))
         if len(data) == 8:
@@ -154,7 +161,7 @@ class CelesteRun(Model):
 
     def description(self, compare=None):
         fd = lambda d: str(d).rjust(3)
-        ft = lambda t: str(t)[:-3]
+        ft = lambda t: str(t)[:-3] if t.microseconds != 0 else f'{t}.000'
         names = [
             'Forsaken City   ',
             'Old Site        ',
