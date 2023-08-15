@@ -4,7 +4,7 @@ import cv2, imutils
 import pytesseract
 import re
 from math import pi, cos, sin
-config = '--psm 7 --oem 3 -c tessedit_char_whitelist=0123456789.:/'
+config = '--psm 4 --oem 3 -c tessedit_char_whitelist=0123456789.:/'
 
 from tortoise.models import Model
 from tortoise import fields
